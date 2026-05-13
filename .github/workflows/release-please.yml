@@ -12,7 +12,48 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
+        id: release
         with:
           release-type: rust
+
+  build:
+    name: Build universal binary
+    runs-on: macos-latest
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Add targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build (aarch64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Create universal binary
+        run: |
+          lipo -create \
+            -output ledctl \
+            target/aarch64-apple-darwin/release/ledctl \
+            target/x86_64-apple-darwin/release/ledctl
+
+      - name: Upload to release
+        run: gh release upload "${{ needs.release-please.outputs.tag_name }}" ledctl
+        env:
+          GH_TOKEN: ${{ github.token }}
