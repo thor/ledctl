@@ -48,4 +48,14 @@ mod tests {
         let msg = LedError::ManagerOpenFailed(0xe00002bcu32 as i32).to_string();
         assert!(!msg.is_empty());
     }
+
+    #[test]
+    #[ignore]
+    fn hid_session_opens_and_lists_keyboards() {
+        let session = ledctl::hid::HidSession::new().expect("HidSession::new failed");
+        println!("Found {} keyboard(s):", session.keyboards().len());
+        for kb in session.keyboards() {
+            println!("  [{:#010x}] {}", kb.location_id, kb.name);
+        }
+    }
 }

@@ -179,4 +179,96 @@ impl fmt::Display for LedError {
 
 impl std::error::Error for LedError {}
 
-pub struct HidSession;
+pub struct KeyboardDevice {
+    pub name: String,
+    pub location_id: u32,
+    pub(crate) ref_: IOHIDDeviceRef,
+}
+
+pub struct HidSession {
+    manager: IOHIDManagerRef,
+    devices: Vec<KeyboardDevice>,
+}
+
+impl Drop for HidSession {
+    fn drop(&mut self) {
+        unsafe {
+            IOHIDManagerClose(self.manager, K_IO_HID_OPTIONS_TYPE_NONE);
+            CFRelease(self.manager as CFTypeRef);
+        }
+    }
+}
+
+impl HidSession {
+    pub fn keyboards(&self) -> &[KeyboardDevice] {
+        &self.devices
+    }
+}
+
+impl HidSession {
+    pub fn new() -> Result<Self, LedError> {
+        unsafe {
+            let manager = IOHIDManagerCreate(ptr::null(), K_IO_HID_OPTIONS_TYPE_NONE);
+            if manager.is_null() {
+                return Err(LedError::ManagerOpenFailed(-1));
+            }
+
+            let matching = make_device_matching_dict(
+                K_HID_PAGE_GENERIC_DESKTOP as i32,
+                K_HID_USAGE_GD_KEYBOARD as i32,
+            );
+            IOHIDManagerSetDeviceMatching(manager, matching as *const c_void);
+            CFRelease(matching as CFTypeRef);
+
+            let ret = IOHIDManagerOpen(manager, K_IO_HID_OPTIONS_TYPE_NONE);
+            if ret != K_IO_RETURN_SUCCESS {
+                CFRelease(manager as CFTypeRef);
+                return Err(LedError::ManagerOpenFailed(ret));
+            }
+
+            let device_set = IOHIDManagerCopyDevices(manager);
+            let devices = if device_set.is_null() {
+                vec![]
+            } else {
+                let count = CFSetGetCount(device_set) as usize;
+                let mut ptrs: Vec<*const c_void> = vec![ptr::null(); count];
+                CFSetGetValues(device_set, ptrs.as_mut_ptr());
+                CFRelease(device_set as CFTypeRef);
+
+                ptrs.into_iter()
+                    .filter_map(|p| {
+                        let dev = p as IOHIDDeviceRef;
+                        if IOHIDDeviceConformsTo(dev, K_HID_PAGE_GENERIC_DESKTOP, K_HID_USAGE_GD_KEYBOARD) == 0 {
+                            return None;
+                        }
+
+                        let name_key = cf_string(K_IO_HID_PRODUCT_KEY);
+                        let name_ref = IOHIDDeviceGetProperty(dev, name_key) as CFStringRef;
+                        CFRelease(name_key as CFTypeRef);
+                        let name = cf_string_to_rust(name_ref).unwrap_or_else(|| "Unknown".to_string());
+
+                        let loc_key = cf_string(K_IO_HID_LOCATION_ID_KEY);
+                        let loc_ref = IOHIDDeviceGetProperty(dev, loc_key);
+                        CFRelease(loc_key as CFTypeRef);
+                        let mut location_id: i32 = 0;
+                        if !loc_ref.is_null() {
+                            CFNumberGetValue(
+                                loc_ref as CFNumberRef,
+                                kCFNumberSInt32Type,
+                                &mut location_id as *mut i32 as *mut c_void,
+                            );
+                        }
+
+                        Some(KeyboardDevice {
+                            name,
+                            location_id: location_id as u32,
+                            ref_: dev,
+                        })
+                    })
+                    .collect()
+            };
+
+            Ok(HidSession { manager, devices })
+        }
+    }
+}
