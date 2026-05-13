@@ -1,6 +1,79 @@
 #[cfg(test)]
 mod tests {
     use ledctl::hid::{Led, LedError, LedState};
+    use ledctl::cli::{parse_args, CliError, Command, LedAction};
+
+    #[test]
+    fn parse_list_flag() {
+        let args = ["--list".to_string()];
+        let parsed = parse_args(&args).unwrap();
+        assert!(matches!(parsed.command, Command::List));
+    }
+
+    #[test]
+    fn parse_caps_toggle() {
+        let args = ["caps".to_string(), "toggle".to_string()];
+        let parsed = parse_args(&args).unwrap();
+        assert!(matches!(parsed.command, Command::Control { led: ledctl::hid::Led::Caps, action: LedAction::Toggle }));
+        assert_eq!(parsed.count, 1);
+        assert!(parsed.device_filter.is_none());
+    }
+
+    #[test]
+    fn parse_num_on_with_device_and_count() {
+        let args = [
+            "--device".to_string(), "Apple".to_string(),
+            "num".to_string(), "on".to_string(),
+            "--count".to_string(), "5".to_string(),
+        ];
+        let parsed = parse_args(&args).unwrap();
+        assert!(matches!(parsed.command, Command::Control { led: ledctl::hid::Led::Num, action: LedAction::On }));
+        assert_eq!(parsed.count, 5);
+        assert_eq!(parsed.device_filter.as_deref(), Some("Apple"));
+    }
+
+    #[test]
+    fn parse_scroll_off() {
+        let args = ["scroll".to_string(), "off".to_string()];
+        let parsed = parse_args(&args).unwrap();
+        assert!(matches!(parsed.command, Command::Control { led: ledctl::hid::Led::Scroll, action: LedAction::Off }));
+    }
+
+    #[test]
+    fn parse_count_zero_is_error() {
+        let args = ["caps".to_string(), "toggle".to_string(), "--count".to_string(), "0".to_string()];
+        assert!(parse_args(&args).is_err());
+    }
+
+    #[test]
+    fn parse_count_10000_is_error() {
+        let args = ["caps".to_string(), "toggle".to_string(), "--count".to_string(), "10000".to_string()];
+        assert!(parse_args(&args).is_err());
+    }
+
+    #[test]
+    fn parse_unknown_led_is_error() {
+        let args = ["brightness".to_string(), "on".to_string()];
+        assert!(parse_args(&args).is_err());
+    }
+
+    #[test]
+    fn parse_unknown_state_is_error() {
+        let args = ["caps".to_string(), "blink".to_string()];
+        assert!(parse_args(&args).is_err());
+    }
+
+    #[test]
+    fn parse_missing_device_value_is_error() {
+        let args = ["--device".to_string()];
+        assert!(parse_args(&args).is_err());
+    }
+
+    #[test]
+    fn parse_no_args_is_error() {
+        let args: [String; 0] = [];
+        assert!(parse_args(&args).is_err());
+    }
 
     #[test]
     fn led_usage_caps() {
