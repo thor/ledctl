@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# mise description="Create ledctl.dmg from ledctl.app"
+set -euo pipefail
+
+hdiutil create \
+    -volname "ledctl" \
+    -srcfolder ledctl.app \
+    -ov \
+    -format UDZO \
+    ledctl.dmg
+
+echo "Created ledctl.dmg"
+lipo -info ledctl.app/Contents/MacOS/ledctl
