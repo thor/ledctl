@@ -10,7 +10,7 @@ Some hardware uses keyboard LED state as a signaling channel. Certain programmab
 
 ## Install
 
-Download the universal binary from the [latest release](../../releases) and put it somewhere on your `$PATH`.
+Download the universal binary from the [latest release](https://github.com/thor/ledctl/releases/latest) and put it somewhere on your `$PATH`.
 
 ## Usage
 
