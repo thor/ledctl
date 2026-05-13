@@ -29,6 +29,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: jdx/mise-action@v2
+
       - uses: actions/cache@v4
         with:
           path: |
@@ -37,23 +39,20 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Add targets
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build universal binary
+        run: mise run universal
 
-      - name: Build (aarch64)
-        run: cargo build --release --target aarch64-apple-darwin
+      - name: Create .app bundle
+        run: mise run bundle
+        env:
+          VERSION: ${{ needs.release-please.outputs.tag_name }}
 
-      - name: Build (x86_64)
-        run: cargo build --release --target x86_64-apple-darwin
-
-      - name: Create universal binary
-        run: |
-          lipo -create \
-            -output ledctl \
-            target/aarch64-apple-darwin/release/ledctl \
-            target/x86_64-apple-darwin/release/ledctl
+      - name: Create DMG
+        run: mise run dmg
 
       - name: Upload to release
-        run: gh release upload "${{ needs.release-please.outputs.tag_name }}" ledctl
+        run: |
+          cp target/ledctl ledctl-macos-universal
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" ledctl-macos-universal ledctl.dmg
         env:
           GH_TOKEN: ${{ github.token }}
