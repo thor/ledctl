@@ -40,7 +40,7 @@ const K_IO_HID_DEVICE_USAGE_PAGE_KEY: &str = "DeviceUsagePage";
 const K_IO_HID_DEVICE_USAGE_KEY: &str = "DeviceUsage";
 const K_IO_HID_ELEMENT_USAGE_PAGE_KEY: &str = "UsagePage";
 
-extern "C" {
+unsafe extern "C" {
     fn IOHIDManagerCreate(allocator: *const c_void, options: IOOptionBits) -> IOHIDManagerRef;
     fn IOHIDManagerOpen(manager: IOHIDManagerRef, options: IOOptionBits) -> IOReturn;
     fn IOHIDManagerClose(manager: IOHIDManagerRef, options: IOOptionBits) -> IOReturn;
@@ -79,84 +79,90 @@ extern "C" {
 
 unsafe fn cf_string(s: &str) -> CFStringRef {
     let c = CString::new(s).expect("interior nul in CF string key");
-    CFStringCreateWithCString(ptr::null(), c.as_ptr(), kCFStringEncodingUTF8)
+    unsafe { CFStringCreateWithCString(ptr::null(), c.as_ptr(), kCFStringEncodingUTF8) }
 }
 
 unsafe fn cf_string_to_rust(s: CFStringRef) -> Option<String> {
     if s.is_null() {
         return None;
     }
-    let len = CFStringGetLength(s);
+    let len = unsafe { CFStringGetLength(s) };
     let max_buf = len * 4 + 1;
     let mut buf: Vec<c_char> = vec![0; max_buf as usize];
-    if CFStringGetCString(s, buf.as_mut_ptr(), max_buf, kCFStringEncodingUTF8) == 0 {
+    if unsafe { CFStringGetCString(s, buf.as_mut_ptr(), max_buf, kCFStringEncodingUTF8) } == 0 {
         return None;
     }
-    Some(CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned())
+    Some(unsafe { CStr::from_ptr(buf.as_ptr()) }.to_string_lossy().into_owned())
 }
 
 unsafe fn cf_number_i32(n: i32) -> CFNumberRef {
-    CFNumberCreate(ptr::null(), kCFNumberSInt32Type, &n as *const i32 as *const c_void)
+    unsafe { CFNumberCreate(ptr::null(), kCFNumberSInt32Type, &n as *const i32 as *const c_void) }
 }
 
 unsafe fn make_device_matching_dict(usage_page: i32, usage: i32) -> CFMutableDictionaryRef {
-    let dict = CFDictionaryCreateMutable(
-        ptr::null(),
-        0,
-        &kCFTypeDictionaryKeyCallBacks,
-        &kCFTypeDictionaryValueCallBacks,
-    );
-    let key_page = cf_string(K_IO_HID_DEVICE_USAGE_PAGE_KEY);
-    let key_usage = cf_string(K_IO_HID_DEVICE_USAGE_KEY);
-    let val_page = cf_number_i32(usage_page);
-    let val_usage = cf_number_i32(usage);
-    CFDictionaryAddValue(dict, key_page as *const c_void, val_page as *const c_void);
-    CFDictionaryAddValue(dict, key_usage as *const c_void, val_usage as *const c_void);
-    CFRelease(key_page as CFTypeRef);
-    CFRelease(key_usage as CFTypeRef);
-    CFRelease(val_page as CFTypeRef);
-    CFRelease(val_usage as CFTypeRef);
-    dict
+    unsafe {
+        let dict = CFDictionaryCreateMutable(
+            ptr::null(),
+            0,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks,
+        );
+        let key_page = cf_string(K_IO_HID_DEVICE_USAGE_PAGE_KEY);
+        let key_usage = cf_string(K_IO_HID_DEVICE_USAGE_KEY);
+        let val_page = cf_number_i32(usage_page);
+        let val_usage = cf_number_i32(usage);
+        CFDictionaryAddValue(dict, key_page as *const c_void, val_page as *const c_void);
+        CFDictionaryAddValue(dict, key_usage as *const c_void, val_usage as *const c_void);
+        CFRelease(key_page as CFTypeRef);
+        CFRelease(key_usage as CFTypeRef);
+        CFRelease(val_page as CFTypeRef);
+        CFRelease(val_usage as CFTypeRef);
+        dict
+    }
 }
 
 unsafe fn make_element_matching_dict(usage_page: i32) -> CFMutableDictionaryRef {
-    let dict = CFDictionaryCreateMutable(
-        ptr::null(),
-        0,
-        &kCFTypeDictionaryKeyCallBacks,
-        &kCFTypeDictionaryValueCallBacks,
-    );
-    let key_page = cf_string(K_IO_HID_ELEMENT_USAGE_PAGE_KEY);
-    let val_page = cf_number_i32(usage_page);
-    CFDictionaryAddValue(dict, key_page as *const c_void, val_page as *const c_void);
-    CFRelease(key_page as CFTypeRef);
-    CFRelease(val_page as CFTypeRef);
-    dict
+    unsafe {
+        let dict = CFDictionaryCreateMutable(
+            ptr::null(),
+            0,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks,
+        );
+        let key_page = cf_string(K_IO_HID_ELEMENT_USAGE_PAGE_KEY);
+        let val_page = cf_number_i32(usage_page);
+        CFDictionaryAddValue(dict, key_page as *const c_void, val_page as *const c_void);
+        CFRelease(key_page as CFTypeRef);
+        CFRelease(val_page as CFTypeRef);
+        dict
+    }
 }
 
 unsafe fn find_led_element(device: IOHIDDeviceRef, led: Led) -> Option<IOHIDElementRef> {
-    let matching = make_element_matching_dict(K_HID_PAGE_LEDS as i32);
-    let elements = IOHIDDeviceCopyMatchingElements(device, matching as *const c_void, K_IO_HID_OPTIONS_TYPE_NONE);
-    CFRelease(matching as CFTypeRef);
+    unsafe {
+        let matching = make_element_matching_dict(K_HID_PAGE_LEDS as i32);
+        let elements = IOHIDDeviceCopyMatchingElements(device, matching as *const c_void, K_IO_HID_OPTIONS_TYPE_NONE);
+        CFRelease(matching as CFTypeRef);
 
-    if elements.is_null() {
-        return None;
-    }
-
-    let count = CFArrayGetCount(elements);
-    let mut found: Option<IOHIDElementRef> = None;
-
-    for i in 0..count {
-        let elem = CFArrayGetValueAtIndex(elements, i) as IOHIDElementRef;
-        if IOHIDElementGetUsagePage(elem) == K_HID_PAGE_LEDS && IOHIDElementGetUsage(elem) == led.usage() {
-            found = Some(elem);
-            break;
+        if elements.is_null() {
+            return None;
         }
-    }
 
-    // Elements are retained by the device; safe to use after releasing the array.
-    CFRelease(elements as CFTypeRef);
-    found
+        let count = CFArrayGetCount(elements);
+        let mut found: Option<IOHIDElementRef> = None;
+
+        for i in 0..count {
+            let elem = CFArrayGetValueAtIndex(elements, i) as IOHIDElementRef;
+            if IOHIDElementGetUsagePage(elem) == K_HID_PAGE_LEDS && IOHIDElementGetUsage(elem) == led.usage() {
+                found = Some(elem);
+                break;
+            }
+        }
+
+        // Elements are retained by the device; safe to use after releasing the array.
+        CFRelease(elements as CFTypeRef);
+        found
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -240,16 +246,18 @@ impl HidSession {
     }
 
     unsafe fn read_led(&self, device: &KeyboardDevice, led: Led) -> Result<bool, LedError> {
-        let elem = find_led_element(device.ref_, led).ok_or(LedError::ElementNotFound(led))?;
-        let mut value_ref: IOHIDValueRef = ptr::null_mut();
-        let ret = IOHIDDeviceGetValue(device.ref_, elem, &mut value_ref);
-        if ret != K_IO_RETURN_SUCCESS {
-            return Err(LedError::IoKitError(ret));
+        unsafe {
+            let elem = find_led_element(device.ref_, led).ok_or(LedError::ElementNotFound(led))?;
+            let mut value_ref: IOHIDValueRef = ptr::null_mut();
+            let ret = IOHIDDeviceGetValue(device.ref_, elem, &mut value_ref);
+            if ret != K_IO_RETURN_SUCCESS {
+                return Err(LedError::IoKitError(ret));
+            }
+            if value_ref.is_null() {
+                return Err(LedError::IoKitError(-1));
+            }
+            Ok(IOHIDValueGetIntegerValue(value_ref) != 0)
         }
-        if value_ref.is_null() {
-            return Err(LedError::IoKitError(-1));
-        }
-        Ok(IOHIDValueGetIntegerValue(value_ref) != 0)
     }
 
     pub fn set_led(&self, device: &KeyboardDevice, led: Led, on: bool) -> Result<(), LedError> {
