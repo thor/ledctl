@@ -8,6 +8,9 @@ else
     VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
 fi
 
+GIT_SHA="${GIT_SHA:-$(git rev-parse --short HEAD)}"
+SHORT_SHA="${GIT_SHA:0:7}"
+
 mkdir -p ledctl.app/Contents/MacOS
 mkdir -p ledctl.app/Contents/Resources
 cp target/ledctl ledctl.app/Contents/MacOS/ledctl
@@ -29,7 +32,7 @@ cat > ledctl.app/Contents/Info.plist << PLIST
     <key>CFBundleShortVersionString</key>
     <string>${VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>${VERSION}</string>
+    <string>${SHORT_SHA}</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
     <key>NSHighResolutionCapable</key>

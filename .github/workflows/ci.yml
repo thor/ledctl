@@ -117,6 +117,7 @@ jobs:
         run: mise run bundle
         env:
           VERSION: ${{ github.event.release.tag_name }}
+          GIT_SHA: ${{ github.sha }}
 
       - name: Create DMG
         run: mise run dmg
