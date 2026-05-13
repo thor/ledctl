@@ -5,7 +5,6 @@ pub fn run() {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("LED Control")
-            .with_inner_size([440.0, 180.0])
             .with_resizable(false),
         ..Default::default()
     };
@@ -79,7 +78,7 @@ impl LedApp {
 
 impl eframe::App for LedApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+        let content_max = egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("LED Control");
             ui.add_space(6.0);
 
@@ -148,7 +147,14 @@ impl eframe::App for LedApp {
                 ui.add_space(6.0);
                 ui.colored_label(egui::Color32::from_rgb(220, 60, 60), err);
             }
-        });
+
+            ui.min_rect().max
+        }).inner;
+
+        let margin = ctx.style().spacing.window_margin;
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
+            content_max.to_vec2() + egui::vec2(margin.right, margin.bottom),
+        ));
     }
 }
 
