@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/thor/ledctl/compare/v0.1.0...v0.1.1) (2026-05-13)
+
+
+### Bug Fixes
+
+* **ci:** get release-please working ([22e61c0](https://github.com/thor/ledctl/commit/22e61c0c4b23fa1b2da15a58049b154a6e583032))
+
 ## 0.1.0 (2026-05-13)
 
 
