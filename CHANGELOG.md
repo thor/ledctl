@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/thor/ledctl/compare/v0.1.3...v0.1.4) (2026-05-13)
+
+
+### Bug Fixes
+
+* add git sha to the about page ([88e5568](https://github.com/thor/ledctl/commit/88e556877f47543bd91aef1c67977e39cc8c6694))
+
 ## [0.1.3](https://github.com/thor/ledctl/compare/v0.1.2...v0.1.3) (2026-05-13)
 
 

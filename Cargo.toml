@@ -1,6 +1,6 @@
 [package]
 name = "ledctl"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 authors = ["Thor Høgås <thor@roht.no>"]
 homepage = "https://github.com/thor/ledctl"
