@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [prereleased]
+
+jobs:
+  check:
+    name: Check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Add targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Clippy (aarch64)
+        run: cargo clippy --target aarch64-apple-darwin -- -D warnings
+
+      - name: Clippy (x86_64)
+        run: cargo clippy --target x86_64-apple-darwin -- -D warnings
+
+      - name: Test
+        run: cargo test
+
+  release:
+    name: Build universal binary
+    runs-on: macos-latest
+    needs: check
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Add targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build (aarch64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Create universal binary
+        run: |
+          lipo -create \
+            -output ledctl \
+            target/aarch64-apple-darwin/release/ledctl \
+            target/x86_64-apple-darwin/release/ledctl
+
+      - name: Upload to release
+        run: gh release upload "${{ github.event.release.tag_name }}" ledctl
+        env:
+          GH_TOKEN: ${{ github.token }}
