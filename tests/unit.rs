@@ -58,4 +58,13 @@ mod tests {
             println!("  [{:#010x}] {}", kb.location_id, kb.name);
         }
     }
+
+    #[test]
+    #[ignore]
+    fn get_led_state_returns_state_for_first_keyboard() {
+        let session = ledctl::hid::HidSession::new().expect("HidSession::new failed");
+        let kb = session.keyboards().first().expect("no keyboard found");
+        let state = session.get_led_state(kb).expect("get_led_state failed");
+        println!("caps={} num={} scroll={}", state.caps, state.num, state.scroll);
+    }
 }

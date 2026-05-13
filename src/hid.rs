@@ -134,6 +134,31 @@ unsafe fn make_element_matching_dict(usage_page: i32) -> CFMutableDictionaryRef 
     dict
 }
 
+unsafe fn find_led_element(device: IOHIDDeviceRef, led: Led) -> Option<IOHIDElementRef> {
+    let matching = make_element_matching_dict(K_HID_PAGE_LEDS as i32);
+    let elements = IOHIDDeviceCopyMatchingElements(device, matching as *const c_void, K_IO_HID_OPTIONS_TYPE_NONE);
+    CFRelease(matching as CFTypeRef);
+
+    if elements.is_null() {
+        return None;
+    }
+
+    let count = CFArrayGetCount(elements);
+    let mut found: Option<IOHIDElementRef> = None;
+
+    for i in 0..count {
+        let elem = CFArrayGetValueAtIndex(elements, i) as IOHIDElementRef;
+        if IOHIDElementGetUsagePage(elem) == K_HID_PAGE_LEDS && IOHIDElementGetUsage(elem) == led.usage() {
+            found = Some(elem);
+            break;
+        }
+    }
+
+    // Elements are retained by the device; safe to use after releasing the array.
+    CFRelease(elements as CFTypeRef);
+    found
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Led {
     Caps,
@@ -202,6 +227,29 @@ impl Drop for HidSession {
 impl HidSession {
     pub fn keyboards(&self) -> &[KeyboardDevice] {
         &self.devices
+    }
+
+    pub fn get_led_state(&self, device: &KeyboardDevice) -> Result<LedState, LedError> {
+        unsafe {
+            Ok(LedState {
+                caps: self.read_led(device, Led::Caps)?,
+                num: self.read_led(device, Led::Num)?,
+                scroll: self.read_led(device, Led::Scroll)?,
+            })
+        }
+    }
+
+    unsafe fn read_led(&self, device: &KeyboardDevice, led: Led) -> Result<bool, LedError> {
+        let elem = find_led_element(device.ref_, led).ok_or(LedError::ElementNotFound(led))?;
+        let mut value_ref: IOHIDValueRef = ptr::null_mut();
+        let ret = IOHIDDeviceGetValue(device.ref_, elem, &mut value_ref);
+        if ret != K_IO_RETURN_SUCCESS {
+            return Err(LedError::IoKitError(ret));
+        }
+        if value_ref.is_null() {
+            return Err(LedError::IoKitError(-1));
+        }
+        Ok(IOHIDValueGetIntegerValue(value_ref) != 0)
     }
 }
 
