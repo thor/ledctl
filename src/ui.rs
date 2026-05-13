@@ -1,9 +1,10 @@
 use crate::hid::{HidSession, Led, LedState};
 use iced::widget::{button, column, pick_list, row, text, text_input};
-use iced::{Background, Border, Color, Element, Shadow};
+use iced::{Background, Color, Element};
 
 pub fn run() {
-    iced::application("LED Control", LedApp::update, LedApp::view)
+    iced::application(LedApp::new, LedApp::update, LedApp::view)
+        .title("LED Control")
         .window(iced::window::Settings {
             size: iced::Size::new(380.0, 160.0),
             resizable: false,
@@ -188,8 +189,7 @@ fn led_button(label: &str, is_on: bool, msg: Message) -> Element<'_, Message> {
         .style(move |_theme, _status| button::Style {
             background: Some(Background::Color(fill)),
             text_color: Color::WHITE,
-            border: Border::default(),
-            shadow: Shadow::default(),
+            ..Default::default()
         })
         .width(120)
         .height(36)
