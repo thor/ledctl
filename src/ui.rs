@@ -1,28 +1,39 @@
 use crate::hid::{HidSession, Led, LedState};
-use eframe::egui;
+use iced::widget::{button, column, pick_list, row, text, text_input};
+use iced::{Background, Border, Color, Element, Shadow};
 
 pub fn run() {
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("LED Control")
-            .with_resizable(false),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "LED Control",
-        options,
-        Box::new(|_cc| Ok(Box::new(LedApp::new()))),
-    )
-    .expect("Failed to launch LED Control window");
+    iced::application("LED Control", LedApp::update, LedApp::view)
+        .window(iced::window::Settings {
+            size: iced::Size::new(380.0, 160.0),
+            resizable: false,
+            ..Default::default()
+        })
+        .run()
+        .expect("Failed to launch LED Control window");
+}
+
+#[derive(Debug, Clone)]
+enum Message {
+    DeviceSelected(String),
+    CountChanged(String),
+    ToggleLed(Led),
 }
 
 struct LedApp {
     session: Option<HidSession>,
-    selected: usize, // 0 = "All Devices"; 1..N = keyboards[selected - 1]
+    selected: usize,
+    selected_name: String,
     state: Option<LedState>,
     error: Option<String>,
     count: u32,
     count_str: String,
+}
+
+impl Default for LedApp {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LedApp {
@@ -35,11 +46,22 @@ impl LedApp {
         LedApp {
             session,
             selected: 0,
+            selected_name: "All Devices".to_string(),
             state,
             error: None,
             count: 1,
             count_str: "1".to_string(),
         }
+    }
+
+    fn device_names(&self) -> Vec<String> {
+        let mut names = vec!["All Devices".to_string()];
+        if let Some(session) = &self.session {
+            for kb in session.keyboards() {
+                names.push(kb.name.clone());
+            }
+        }
+        names
     }
 
     fn refresh_state(&mut self) {
@@ -64,7 +86,6 @@ impl LedApp {
         } else {
             vec![]
         };
-
         self.error = None;
         let count = self.count;
         for idx in indices {
@@ -74,96 +95,167 @@ impl LedApp {
         }
         self.refresh_state();
     }
-}
 
-impl eframe::App for LedApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let content_max = egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("LED Control");
-            ui.add_space(6.0);
-
-            // Device row
-            ui.horizontal(|ui| {
-                ui.label("Device:");
-                let selected_label = if self.selected == 0 {
-                    "All Devices".to_string()
+    fn update(&mut self, message: Message) {
+        match message {
+            Message::DeviceSelected(name) => {
+                self.selected = if name == "All Devices" {
+                    0
                 } else {
                     self.session
                         .as_ref()
-                        .and_then(|s| s.keyboards().get(self.selected - 1))
-                        .map(|kb| kb.name.clone())
-                        .unwrap_or_else(|| "Unknown".to_string())
+                        .and_then(|s| {
+                            s.keyboards()
+                                .iter()
+                                .position(|kb| kb.name == name)
+                                .map(|i| i + 1)
+                        })
+                        .unwrap_or(0)
                 };
-                egui::ComboBox::from_id_source("device_picker")
-                    .selected_text(selected_label)
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.selected, 0, "All Devices");
-                        if let Some(session) = &self.session {
-                            for (i, kb) in session.keyboards().iter().enumerate() {
-                                ui.selectable_value(&mut self.selected, i + 1, &kb.name);
-                            }
-                        }
-                    });
-            });
-
-            // Count row
-            ui.horizontal(|ui| {
-                ui.label("Count:");
-                let resp = ui.add(
-                    egui::TextEdit::singleline(&mut self.count_str).desired_width(60.0),
-                );
-                if resp.changed() {
-                    if let Ok(n) = self.count_str.parse::<u32>() {
-                        if (1..=9999).contains(&n) {
-                            self.count = n;
-                        }
-                    }
-                }
-            });
-
-            ui.add_space(8.0);
-
-            // LED buttons
-            ui.horizontal(|ui| {
-                let caps_on = self.state.as_ref().map(|s| s.caps).unwrap_or(false);
-                let num_on = self.state.as_ref().map(|s| s.num).unwrap_or(false);
-                let scroll_on = self.state.as_ref().map(|s| s.scroll).unwrap_or(false);
-
-                if led_button(ui, "Caps Lock", caps_on).clicked() {
-                    self.toggle(Led::Caps);
-                }
-                ui.add_space(4.0);
-                if led_button(ui, "Num Lock", num_on).clicked() {
-                    self.toggle(Led::Num);
-                }
-                ui.add_space(4.0);
-                if led_button(ui, "Scroll Lock", scroll_on).clicked() {
-                    self.toggle(Led::Scroll);
-                }
-            });
-
-            // Error display
-            if let Some(err) = &self.error {
-                ui.add_space(6.0);
-                ui.colored_label(egui::Color32::from_rgb(220, 60, 60), err);
+                self.selected_name = name;
+                self.refresh_state();
             }
+            Message::CountChanged(s) => {
+                if let Ok(n) = s.parse::<u32>() && (1..=9999).contains(&n) {
+                    self.count = n;
+                }
+                self.count_str = s;
+            }
+            Message::ToggleLed(led) => {
+                self.toggle(led);
+            }
+        }
+    }
 
-            ui.min_rect().max
-        }).inner;
+    fn view(&self) -> Element<'_, Message> {
+        let names = self.device_names();
+        let caps_on = self.state.as_ref().map(|s| s.caps).unwrap_or(false);
+        let num_on = self.state.as_ref().map(|s| s.num).unwrap_or(false);
+        let scroll_on = self.state.as_ref().map(|s| s.scroll).unwrap_or(false);
 
-        let margin = ctx.style().spacing.window_margin;
-        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(
-            content_max.to_vec2() + egui::vec2(margin.right, margin.bottom),
-        ));
+        let device_row = row![
+            text("Device:").width(60),
+            pick_list(names, Some(self.selected_name.clone()), Message::DeviceSelected),
+        ]
+        .spacing(8)
+        .align_y(iced::alignment::Vertical::Center);
+
+        let count_row = row![
+            text("Count:").width(60),
+            text_input("", &self.count_str)
+                .on_input(Message::CountChanged)
+                .width(60),
+        ]
+        .spacing(8)
+        .align_y(iced::alignment::Vertical::Center);
+
+        let button_row = row![
+            led_button("Caps Lock", caps_on, Message::ToggleLed(Led::Caps)),
+            led_button("Num Lock", num_on, Message::ToggleLed(Led::Num)),
+            led_button("Scroll Lock", scroll_on, Message::ToggleLed(Led::Scroll)),
+        ]
+        .spacing(4);
+
+        let mut content = column![
+            text("LED Control").size(20),
+            device_row,
+            count_row,
+            button_row,
+        ]
+        .spacing(6)
+        .padding(12);
+
+        if let Some(err) = &self.error {
+            content = content.push(
+                text(err.as_str()).style(|_theme| iced::widget::text::Style {
+                    color: Some(Color::from_rgb8(220, 60, 60)),
+                }),
+            );
+        }
+
+        content.into()
     }
 }
 
-fn led_button(ui: &mut egui::Ui, label: &str, is_on: bool) -> egui::Response {
+fn led_button(label: &str, is_on: bool, msg: Message) -> Element<'_, Message> {
     let fill = if is_on {
-        egui::Color32::from_rgb(80, 180, 90)
+        Color::from_rgb8(80, 180, 90)
     } else {
-        egui::Color32::from_rgb(55, 55, 60)
+        Color::from_rgb8(55, 55, 60)
     };
-    let text = egui::RichText::new(label).strong();
-    ui.add(egui::Button::new(text).fill(fill).min_size(egui::vec2(110.0, 36.0)))
+    button(text(label))
+        .on_press(msg)
+        .style(move |_theme, _status| button::Style {
+            background: Some(Background::Color(fill)),
+            text_color: Color::WHITE,
+            border: Border::default(),
+            shadow: Shadow::default(),
+        })
+        .width(120)
+        .height(36)
+        .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn app() -> LedApp {
+        LedApp {
+            session: None,
+            selected: 0,
+            selected_name: "All Devices".to_string(),
+            state: None,
+            error: None,
+            count: 1,
+            count_str: "1".to_string(),
+        }
+    }
+
+    #[test]
+    fn count_changed_valid_input_updates_both() {
+        let mut a = app();
+        a.update(Message::CountChanged("42".to_string()));
+        assert_eq!(a.count, 42);
+        assert_eq!(a.count_str, "42");
+    }
+
+    #[test]
+    fn count_changed_invalid_input_preserves_count_updates_string() {
+        let mut a = app();
+        a.update(Message::CountChanged("abc".to_string()));
+        assert_eq!(a.count, 1);
+        assert_eq!(a.count_str, "abc");
+    }
+
+    #[test]
+    fn count_changed_out_of_range_preserves_count() {
+        let mut a = app();
+        a.update(Message::CountChanged("10000".to_string()));
+        assert_eq!(a.count, 1);
+        assert_eq!(a.count_str, "10000");
+    }
+
+    #[test]
+    fn device_selected_all_devices_sets_index_zero() {
+        let mut a = app();
+        a.selected = 1;
+        a.selected_name = "SomeKeyboard".to_string();
+        a.update(Message::DeviceSelected("All Devices".to_string()));
+        assert_eq!(a.selected, 0);
+        assert_eq!(a.selected_name, "All Devices");
+    }
+
+    #[test]
+    fn device_names_no_session_returns_all_devices_only() {
+        let a = app();
+        assert_eq!(a.device_names(), vec!["All Devices".to_string()]);
+    }
+
+    #[test]
+    fn toggle_led_no_session_sets_error() {
+        let mut a = app();
+        a.update(Message::ToggleLed(Led::Caps));
+        assert!(a.error.is_some());
+    }
 }

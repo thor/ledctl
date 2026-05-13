@@ -12,8 +12,7 @@ name = "ledctl"
 path = "src/main.rs"
 
 [dependencies]
-eframe = "0.28"
-egui = "0.28"
+iced = "0.13"
 core-foundation-sys = "0.8"
 
 [profile.release]
