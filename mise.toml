@@ -1,9 +1,14 @@
-[tasks.universal]
-description = "Build a universal macOS binary (arm64 + x86_64)"
+[tasks.build]
+description = "Build ledctl for a target (usage: mise run build -- aarch64-apple-darwin)"
 run = """
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
-cargo build --release --target aarch64-apple-darwin
-cargo build --release --target x86_64-apple-darwin
+TARGET="${1:?usage: mise run build -- <target>}"
+rustup target add "$TARGET"
+cargo build --release --target "$TARGET"
+"""
+
+[tasks.lipo]
+description = "Combine aarch64 and x86_64 release binaries into target/ledctl"
+run = """
 lipo -create \
     -output target/ledctl \
     target/aarch64-apple-darwin/release/ledctl \

@@ -2,9 +2,11 @@ name: CI
 
 on:
   push:
+    branches:
+      - "**"
   pull_request:
   release:
-    types: [prereleased]
+    types: [created]
 
 jobs:
   check:
@@ -33,39 +35,96 @@ jobs:
       - name: Test
         run: cargo test
 
-  release:
-    name: Build universal binary
+  build-aarch64:
+    name: Build (aarch64)
     runs-on: macos-latest
     needs: check
     if: github.event_name == 'release'
     steps:
       - uses: actions/checkout@v4
 
+      - uses: jdx/mise-action@v2
+
       - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Add targets
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+            target/aarch64-apple-darwin
+          key: ${{ runner.os }}-cargo-aarch64-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build (aarch64)
-        run: cargo build --release --target aarch64-apple-darwin
+        run: mise run build -- aarch64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledctl-aarch64
+          path: target/aarch64-apple-darwin/release/ledctl
+
+  build-x86_64:
+    name: Build (x86_64)
+    runs-on: macos-latest
+    needs: check
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/x86_64-apple-darwin
+          key: ${{ runner.os }}-cargo-x86_64-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build (x86_64)
-        run: cargo build --release --target x86_64-apple-darwin
+        run: mise run build -- x86_64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledctl-x86_64
+          path: target/x86_64-apple-darwin/release/ledctl
+
+  publish:
+    name: Bundle, package and publish release
+    runs-on: macos-latest
+    needs: [build-aarch64, build-x86_64]
+    if: github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: jdx/mise-action@v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ledctl-aarch64
+          path: target/aarch64-apple-darwin/release/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ledctl-x86_64
+          path: target/x86_64-apple-darwin/release/
+
+      - name: Restore executable bits
+        run: chmod +x target/aarch64-apple-darwin/release/ledctl target/x86_64-apple-darwin/release/ledctl
 
       - name: Create universal binary
-        run: |
-          lipo -create \
-            -output ledctl \
-            target/aarch64-apple-darwin/release/ledctl \
-            target/x86_64-apple-darwin/release/ledctl
+        run: mise run lipo
 
-      - name: Upload to release
-        run: gh release upload "${{ github.event.release.tag_name }}" ledctl
+      - name: Create .app bundle
+        run: mise run bundle
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+
+      - name: Create DMG
+        run: mise run dmg
+
+      - name: Upload artifacts and publish release
+        run: |
+          cp target/ledctl ledctl-macos-universal
+          gh release upload "${{ github.event.release.tag_name }}" ledctl-macos-universal ledctl.dmg
+          gh release edit "${{ github.event.release.tag_name }}" --draft=false
         env:
           GH_TOKEN: ${{ github.token }}

@@ -12,47 +12,8 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v4
-        id: release
         with:
           release-type: rust
-
-  build:
-    name: Build universal binary
-    runs-on: macos-latest
-    needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: jdx/mise-action@v2
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Build universal binary
-        run: mise run universal
-
-      - name: Create .app bundle
-        run: mise run bundle
-        env:
-          VERSION: ${{ needs.release-please.outputs.tag_name }}
-
-      - name: Create DMG
-        run: mise run dmg
-
-      - name: Upload to release
-        run: |
-          cp target/ledctl ledctl-macos-universal
-          gh release upload "${{ needs.release-please.outputs.tag_name }}" ledctl-macos-universal ledctl.dmg
-        env:
-          GH_TOKEN: ${{ github.token }}
+          draft: true
