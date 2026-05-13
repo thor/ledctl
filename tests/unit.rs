@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use ledctl::hid::{Led, LedError, LedState};
-    use ledctl::cli::{parse_args, CliError, Command, LedAction};
+    use ledctl::cli::{parse_args, Command, LedAction};
 
     #[test]
     fn parse_list_flag() {
@@ -20,14 +20,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_num_on_with_device_and_count() {
+    fn parse_num_toggle_with_device_and_count() {
         let args = [
             "--device".to_string(), "Apple".to_string(),
-            "num".to_string(), "on".to_string(),
+            "num".to_string(), "toggle".to_string(),
             "--count".to_string(), "5".to_string(),
         ];
         let parsed = parse_args(&args).unwrap();
-        assert!(matches!(parsed.command, Command::Control { led: ledctl::hid::Led::Num, action: LedAction::On }));
+        assert!(matches!(parsed.command, Command::Control { led: ledctl::hid::Led::Num, action: LedAction::Toggle }));
         assert_eq!(parsed.count, 5);
         assert_eq!(parsed.device_filter.as_deref(), Some("Apple"));
     }

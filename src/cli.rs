@@ -104,6 +104,10 @@ pub fn parse_args(args: &[String]) -> Result<ParsedArgs, CliError> {
         }
     };
 
+    if count != 1 && !matches!(action, LedAction::Toggle) {
+        return Err(CliError::Usage("--count is only valid with the 'toggle' action".into()));
+    }
+
     Ok(ParsedArgs {
         command: Command::Control { led, action },
         device_filter,

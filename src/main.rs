@@ -21,7 +21,15 @@ fn run_cli(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
 
     match parsed.command {
         Command::List => {
-            for kb in session.keyboards() {
+            let keyboards = session.keyboards();
+            let to_show: Vec<_> = match &parsed.device_filter {
+                None => keyboards.iter().collect(),
+                Some(filter) => {
+                    let f = filter.to_lowercase();
+                    keyboards.iter().filter(|kb| kb.name.to_lowercase().contains(&f)).collect()
+                }
+            };
+            for kb in to_show {
                 println!("[{:#010x}] {}", kb.location_id, kb.name);
             }
         }
