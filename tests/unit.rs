@@ -67,4 +67,32 @@ mod tests {
         let state = session.get_led_state(kb).expect("get_led_state failed");
         println!("caps={} num={} scroll={}", state.caps, state.num, state.scroll);
     }
+
+    #[test]
+    #[ignore]
+    fn set_led_and_restore() {
+        let session = ledctl::hid::HidSession::new().expect("HidSession::new failed");
+        let kb = session.keyboards().first().expect("no keyboard found");
+        let original = session.get_led_state(kb).expect("get_led_state failed");
+
+        // Turn scroll lock on, then restore.
+        session.set_led(kb, ledctl::hid::Led::Scroll, true).expect("set_led on failed");
+        let state = session.get_led_state(kb).expect("get_led_state failed");
+        assert!(state.scroll, "scroll should be on after set_led(true)");
+
+        session.set_led(kb, ledctl::hid::Led::Scroll, original.scroll).expect("set_led restore failed");
+    }
+
+    #[test]
+    #[ignore]
+    fn toggle_led_count_2_restores_state() {
+        let session = ledctl::hid::HidSession::new().expect("HidSession::new failed");
+        let kb = session.keyboards().first().expect("no keyboard found");
+        let original = session.get_led_state(kb).expect("get_led_state failed");
+
+        session.toggle_led(kb, ledctl::hid::Led::Num, 2).expect("toggle_led failed");
+
+        let after = session.get_led_state(kb).expect("get_led_state failed");
+        assert_eq!(original.num, after.num, "even count should restore original state");
+    }
 }

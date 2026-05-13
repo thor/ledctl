@@ -251,6 +251,36 @@ impl HidSession {
         }
         Ok(IOHIDValueGetIntegerValue(value_ref) != 0)
     }
+
+    pub fn set_led(&self, device: &KeyboardDevice, led: Led, on: bool) -> Result<(), LedError> {
+        unsafe {
+            let elem = find_led_element(device.ref_, led).ok_or(LedError::ElementNotFound(led))?;
+            let value = IOHIDValueCreateWithIntegerValue(
+                ptr::null(),
+                elem,
+                0,
+                if on { 1 } else { 0 },
+            );
+            if value.is_null() {
+                return Err(LedError::IoKitError(-1));
+            }
+            let ret = IOHIDDeviceSetValue(device.ref_, elem, value);
+            CFRelease(value as CFTypeRef);
+            if ret != K_IO_RETURN_SUCCESS {
+                return Err(LedError::IoKitError(ret));
+            }
+            Ok(())
+        }
+    }
+
+    pub fn toggle_led(&self, device: &KeyboardDevice, led: Led, count: u32) -> Result<(), LedError> {
+        let mut current = unsafe { self.read_led(device, led)? };
+        for _ in 0..count {
+            current = !current;
+            self.set_led(device, led, current)?;
+        }
+        Ok(())
+    }
 }
 
 impl HidSession {
