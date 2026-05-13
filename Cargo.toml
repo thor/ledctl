@@ -15,3 +15,10 @@ path = "src/main.rs"
 eframe = "0.28"
 egui = "0.28"
 core-foundation-sys = "0.8"
+
+[profile.release]
+strip = "symbols"      # Automatically strip symbols from the binary
+opt-level = "z"        # Optimize for size (use "s" if "z" is not smaller)
+lto = true             # Enable Link Time Optimization
+codegen-units = 1      # Reduce parallel code generation units for better optimization
+incremental = false    # Disable incremental compilation for final builds
