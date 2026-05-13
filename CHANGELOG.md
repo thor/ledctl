@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/thor/ledctl/compare/v0.1.2...v0.1.3) (2026-05-13)
+
+
+### Bug Fixes
+
+* **ui:** add an about page ([6e22895](https://github.com/thor/ledctl/commit/6e228955f0200faec43ceebb736b8223ff4ba7b2))
+
 ## [0.1.2](https://github.com/thor/ledctl/compare/v0.1.1...v0.1.2) (2026-05-13)
 
 
