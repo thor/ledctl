@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/thor/ledctl/compare/v0.1.4...v0.1.5) (2026-05-19)
+
+
+### Bug Fixes
+
+* **build:** use correct syntax for mise tasks ([e235c27](https://github.com/thor/ledctl/commit/e235c277851ffddabd98b00fa807de7bc515980c))
+
 ## [0.1.4](https://github.com/thor/ledctl/compare/v0.1.3...v0.1.4) (2026-05-13)
 
 
