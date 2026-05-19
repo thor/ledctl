@@ -5,8 +5,8 @@ on:
     branches:
       - "**"
   pull_request:
-  release:
-    types: [created]
+    branches:
+      - main
 
 jobs:
   check:
@@ -39,7 +39,7 @@ jobs:
     name: Build (aarch64)
     runs-on: macos-latest
     needs: check
-    if: github.event_name == 'release'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
@@ -56,16 +56,11 @@ jobs:
       - name: Build (aarch64)
         run: mise run build -- aarch64-apple-darwin
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ledctl-aarch64
-          path: target/aarch64-apple-darwin/release/ledctl
-
   build-x86_64:
     name: Build (x86_64)
     runs-on: macos-latest
     needs: check
-    if: github.event_name == 'release'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
@@ -81,51 +76,3 @@ jobs:
 
       - name: Build (x86_64)
         run: mise run build -- x86_64-apple-darwin
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ledctl-x86_64
-          path: target/x86_64-apple-darwin/release/ledctl
-
-  publish:
-    name: Bundle, package and publish release
-    runs-on: macos-latest
-    needs: [build-aarch64, build-x86_64]
-    if: github.event_name == 'release'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: jdx/mise-action@v2
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: ledctl-aarch64
-          path: target/aarch64-apple-darwin/release/
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: ledctl-x86_64
-          path: target/x86_64-apple-darwin/release/
-
-      - name: Restore executable bits
-        run: chmod +x target/aarch64-apple-darwin/release/ledctl target/x86_64-apple-darwin/release/ledctl
-
-      - name: Create universal binary
-        run: mise run lipo
-
-      - name: Create .app bundle
-        run: mise run bundle
-        env:
-          VERSION: ${{ github.event.release.tag_name }}
-          GIT_SHA: ${{ github.sha }}
-
-      - name: Create DMG
-        run: mise run dmg
-
-      - name: Upload artifacts and publish release
-        run: |
-          cp target/ledctl ledctl-macos-universal
-          gh release upload "${{ github.event.release.tag_name }}" ledctl-macos-universal ledctl.dmg
-          gh release edit "${{ github.event.release.tag_name }}" --draft=false
-        env:
-          GH_TOKEN: ${{ github.token }}

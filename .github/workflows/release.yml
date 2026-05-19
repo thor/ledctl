@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      tag_name:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        required: true
+        type: string
+        description: "Release tag to build and publish (e.g. v0.1.4)"
+
+permissions:
+  contents: write
+
+jobs:
+  build-aarch64:
+    name: Build (aarch64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name }}
+
+      - uses: jdx/mise-action@v2
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/aarch64-apple-darwin
+          key: ${{ runner.os }}-cargo-aarch64-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build (aarch64)
+        run: mise run build -- aarch64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledctl-aarch64
+          path: target/aarch64-apple-darwin/release/ledctl
+          overwrite: true
+
+  build-x86_64:
+    name: Build (x86_64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name }}
+
+      - uses: jdx/mise-action@v2
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/x86_64-apple-darwin
+          key: ${{ runner.os }}-cargo-x86_64-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build (x86_64)
+        run: mise run build -- x86_64-apple-darwin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledctl-x86_64
+          path: target/x86_64-apple-darwin/release/ledctl
+          overwrite: true
+
+  publish:
+    name: Bundle, package and publish release
+    runs-on: macos-latest
+    needs: [build-aarch64, build-x86_64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag_name }}
+
+      - uses: jdx/mise-action@v2
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ledctl-aarch64
+          path: target/aarch64-apple-darwin/release/
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ledctl-x86_64
+          path: target/x86_64-apple-darwin/release/
+
+      - name: Restore executable bits
+        run: chmod +x target/aarch64-apple-darwin/release/ledctl target/x86_64-apple-darwin/release/ledctl
+
+      - name: Create universal binary
+        run: mise run lipo
+
+      - name: Resolve commit SHA
+        id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create .app bundle
+        run: mise run bundle
+        env:
+          VERSION: ${{ inputs.tag_name }}
+          GIT_SHA: ${{ steps.sha.outputs.sha }}
+
+      - name: Create DMG
+        run: mise run dmg
+
+      - name: Upload artifacts and publish release
+        run: |
+          cp target/ledctl ledctl-macos-universal
+          gh release upload "${{ inputs.tag_name }}" ledctl-macos-universal ledctl.dmg --clobber
+          gh release edit "${{ inputs.tag_name }}" --draft=false
+        env:
+          GH_TOKEN: ${{ github.token }}
