@@ -1,9 +1,16 @@
-[tasks.build]
-description = "Build ledctl for a target (usage: mise run build -- aarch64-apple-darwin)"
+[tasks."build:both"]
+description = "Build ledctl for both targets"
 run = """
-TARGET="${1:?usage: mise run build -- <target>}"
-rustup target add "$TARGET"
-cargo build --release --target "$TARGET"
+mise run build -- aarch64-apple-darwin
+mise run build -- x86_64-apple-darwin
+"""
+
+[tasks.build]
+description = "Build ledctl for a target"
+usage = 'arg "<target>" help="Target triple to build for"'
+run = """
+rustup target add "${usage_target?}"
+cargo build --release --target "${usage_target?}"
 """
 
 [tasks.lipo]
